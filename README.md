@@ -95,7 +95,7 @@ POST _search
 }
 ```
 
-Issue the following to search for the word socio (the word will be found in the attachment content):
+Issue the following to search for the word "socio" (the word will be found in the attachment content):
 
 ```json
 POST /_search?pretty=true
@@ -114,7 +114,7 @@ POST /_search?pretty=true
 }
 ```
 
-Issue the following to search for the word humanity (there will be no results):
+Issue the following to search for the word "humanity" (there will be no results):
 ```json
 POST /_search?pretty=true
 {
@@ -123,6 +123,24 @@ POST /_search?pretty=true
     "query_string" : {
       "query" : "humanity"
     }
+  },
+  "highlight" : {
+    "fields" : {
+      "file" : {}
+    }
+  }
+}
+```
+
+Issue the following to search for the phrase "socio-economic system":
+```json
+POST /_search?pretty=true
+{
+  "fields" : ["title"],
+  "query" : {
+      "match_phrase": {
+         "file": "socio-economic system"
+      }
   },
   "highlight" : {
     "fields" : {
