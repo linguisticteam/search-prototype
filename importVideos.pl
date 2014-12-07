@@ -40,7 +40,7 @@ unless ( -e $file )
     die "Failed to download document\n" unless $rc == 200;
 }
 
-my @headers = qw(Date Project Short Running Public);
+my @headers = qw(Date Project Short Running Public Languages);
 my $te = HTML::TableExtract->new(
     headers => \@headers,
     attribs => {class=>"wikitable sortable", style=>"text-align:center"},
@@ -52,7 +52,7 @@ $te->parse_file($file);
 my @tables = $te->tables;
 for my $table (@tables)
 {
-    for my $row ($table->rows ) 
+    for my $row ($table->rows )
     {
         my $json = JSON->new;
         my $parser = HTML::TokeParser::Simple->new(string => @$row[4]);
@@ -63,15 +63,6 @@ for my $table (@tables)
             $dotSubURL = $href;
         }
         
-        $parser = HTML::TokeParser::Simple->new(string => @$row[2]);
-        my $youTubeURL = "";
-        while (my $anchor = $parser->get_tag('a')) 
-        {
-            next unless defined(my $href = $anchor->get_attr('href'));
-            $youTubeURL = $href;
-            last if $youTubeURL ne "";
-        }
-
         my $title = @$row[1];
         $parser = HTML::TokeParser::Simple->new(string => $title);
         $parser->utf8_mode(1); # attempt to fix "Parsing of undecoded UTF-8 will give garbage when decoding entities at .../perl/vendor/lib/HTML/PullParser.pm line 81." Get two less errors than without it...
@@ -80,15 +71,6 @@ for my $table (@tables)
         if (defined $value)
         {
             $title = $value->as_is();
-        }
-        
-        if ($youTubeURL eq "")
-        {
-            if (defined $href)
-            {
-                #get the url from the title as a next resort
-                $youTubeURL = $href->get_attr('href');
-            }
         }
 
         $parser = HTML::TokeParser::Simple->new(string => @$row[2])->get_token();
@@ -110,11 +92,15 @@ for my $table (@tables)
         }
         else
         {
-            #todo: 
-            print "ERROR: There was a problem getting the subtitles from dotsub\n";
+            die "ERROR: There was a problem getting the subtitles from dotsub\n";
         }
 
-        my $dataToJSON = {date=>trim(@$row[0]), title=>$title, file=>$coded, duration=>trim(@$row[3]), description=>trim($description), url=>$youTubeURL};
+        my ($original, @videoURLs) = getVideoData(@$row[5], $href, @$row[2]);
+        
+        #print "$original\n";
+        #print Dumper @videoURLs;
+
+        my $dataToJSON = {date=>trim(@$row[0]), title=>$title, file=>$coded, duration=>trim(@$row[3]), description=>trim($description), url=>$original};
         
         if (not $dryRun)
         {
@@ -131,15 +117,71 @@ for my $table (@tables)
         }
         else
         {
-            my $debugJSON = {date=>trim(@$row[0]), title=>trim($title), duration=>trim(@$row[3]), description=>trim($description), url=>$youTubeURL};
+            my $debugJSON = {date=>trim(@$row[0]), title=>trim($title), duration=>trim(@$row[3]), description=>trim($description), url=>$original};
             
             print Dumper $debugJSON;
         }
     }
 }
-#todo: more testing, checking
-#todo: test with perl version 5.8
-#todo: phrase searches
-#todo: what if no url e.g. Discovery Channel...
-#todo: fix Parsing of undecoded UTF-8 will give garbage when decoding entities at ...perl/vendor/lib/HTML/PullParser.pm...
-#todo: check dupes aren't added
+
+sub getVideoData
+{
+    my $languagesColumn = shift;
+    my $titleHref = shift;
+    my $descriptionColumn = shift;
+    
+    my @videos = ();
+    my $original = "";
+    
+    my $parser = HTML::TokeParser::Simple->new(string => $languagesColumn);
+    while (my $anchor = $parser->get_tag('a')) 
+    {
+        my $lang = $parser->get_token()->as_is();
+        next unless defined(my $href = $anchor->get_attr('href'));
+        my %video;
+        if (defined($lang and $href))
+        {
+            $video{language} = $lang;
+            $video{link} = $href;
+            push(@videos, \%video);
+        }
+    }
+
+    if (defined $titleHref)
+    {
+        $original = $titleHref->get_attr('href');
+    }
+    
+    if ($original eq "")
+    {
+        $parser = HTML::TokeParser::Simple->new(string => $descriptionColumn);
+        while (my $anchor = $parser->get_tag('a')) 
+        {
+            next unless defined(my $href = $anchor->get_attr('href'));
+            if ($href ne "")
+            {
+                $original = $href;
+                last;
+            }
+        }
+        
+        if ($original eq "")
+        {
+            #default to the first link and then try to get the English link to override it
+            for my $video (@videos)
+            {
+                if ($video->{language} eq "English")
+                {
+                    $original = $video->{link};
+                }
+            }
+            if ($original eq "" and @videos)
+            {
+                $original = $videos[0]->{link};
+            }
+        }
+    }
+
+    #return original and array of hashes (containing language + video link)
+    return ($original, \@videos);
+}
