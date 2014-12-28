@@ -46,7 +46,6 @@ my $te = HTML::TableExtract->new(
     attribs => {class=>"wikitable sortable", style=>"text-align:center"},
     keep_html => 1,
 );
-#$te->parse_file(Encode::decode_utf8($file));
 $te->parse_file($file);
 
 my @tables = $te->tables;
@@ -65,16 +64,17 @@ for my $table (@tables)
         
         my $title = @$row[1];
         $parser = HTML::TokeParser::Simple->new(string => $title);
-        $parser->utf8_mode(1); # attempt to fix "Parsing of undecoded UTF-8 will give garbage when decoding entities at .../perl/vendor/lib/HTML/PullParser.pm line 81." Get two less errors than without it...
+        $parser->utf8_mode(1);
         my $href = $parser->get_tag(); # without this, won't pull out title
-        my $value = $parser->get_token();
+        my $value = $parser->gt_token();
         if (defined $value)
         {
             $title = $value->as_is();
         }
 
-        $parser = HTML::TokeParser::Simple->new(string => @$row[2])->get_token();
-        my $description = $parser->as_is();
+        $parser = HTML::TokeParser::Simple->new(string => @$row[2]);
+        $parser->utf8_mode(1); 
+        my $description = $parser->get_token()->as_is();
         
         my $uuid = substr($dotSubURL, length("http://dotsub.com/view/"));
 
