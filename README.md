@@ -209,8 +209,8 @@ Copy over importVideos.pl script (755 permissions)
 Import data 
 --------------
 Then run by 
-    perl importVideos.pl elasticsearchIP workingPath
-    e.g. sudo perl importVideos.pl localhost /tmp
+    - perl importVideos.pl elasticsearchIP workingPath
+    - e.g. sudo perl importVideos.pl localhost /tmp
 
 This should import the records from the official repository. An index (equivalent to a database) containing data for 304 videos will take up about 40MB. 
 
@@ -223,8 +223,8 @@ Miscellaneous
 
 From Windows to check if can access ports, start Powershell and issue the following commands, modifying the port as appropriate:
 
-$t = New-Object Net.Sockets.TcpClient "192.168.19.29", 9200
-$t.Connected
+- $t = New-Object Net.Sockets.TcpClient "192.168.19.29", 9200
+- $t.Connected
 
 If you want to make the health of the cluster green, update the number of replicas to 0 for the kibana index:
 
@@ -235,7 +235,7 @@ PUT /.kibana/_settings
     } }
 
 Other references:
-https://stackoverflow.com/questions/37861279/how-to-index-a-pdf-file-in-elasticsearch-5-0-0-with-ingest-attachment-plugin
-https://discuss.elastic.co/t/implementing-ingest-attachment-processor-plugin/52300/24
-https://discuss.elastic.co/t/cannot-access-kibana-remotely/45363/2
-https://github.com/mobz/elasticsearch-head/blob/master/README.textile
+- https://stackoverflow.com/questions/37861279/how-to-index-a-pdf-file-in-elasticsearch-5-0-0-with-ingest-attachment-plugin
+- https://discuss.elastic.co/t/implementing-ingest-attachment-processor-plugin/52300/24
+- https://discuss.elastic.co/t/cannot-access-kibana-remotely/45363/2
+- https://github.com/mobz/elasticsearch-head/blob/master/README.textile
