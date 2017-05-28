@@ -40,7 +40,7 @@ unless ( -e $file )
     die "Failed to download document\n" unless $rc == 200;
 }
 
-my @headers = qw(Date Project Short Running Public Languages);
+my @headers = qw(Date Project Short Running Repository Languages);
 my $te = HTML::TableExtract->new(
     headers => \@headers,
     attribs => {class=>"wikitable sortable", style=>"text-align:center"},
@@ -54,7 +54,9 @@ for my $table (@tables)
     for my $row ($table->rows )
     {
         my $json = JSON->new;
-        my $parser = HTML::TokeParser::Simple->new(string => @$row[4]);
+        my $repoLocation = @$row[4];
+        next unless ($repoLocation =~ "href");
+        my $parser = HTML::TokeParser::Simple->new(string => $repoLocation);
         my $dotSubURL = "";
         while (my $anchor = $parser->get_tag('a')) 
         {
@@ -66,9 +68,10 @@ for my $table (@tables)
         $parser = HTML::TokeParser::Simple->new(string => $title);
         $parser->utf8_mode(1);
         my $href = $parser->get_tag(); # without this, won't pull out title
-        my $value = $parser->gt_token();
+        my $value = $parser->get_token();
         if (defined $value)
         {
+            next if $href =~ "<strike>";
             $title = $value->as_is();
         }
 
@@ -77,30 +80,32 @@ for my $table (@tables)
         my $description = $parser->get_token()->as_is();
         
         my $uuid = substr($dotSubURL, length("http://dotsub.com/view/"));
-
+        $uuid =~ s/\///g;
+        
         # Translation/Transcription File Download api
         my $languageCode = "eng";
         my $format = "srt";
         my $dotsubAPIURL = "https://dotsub.com/media/$uuid/c/$languageCode/$format";
-        my $coded;
+        my $base64;
         my $ua = LWP::UserAgent->new();
         my $response = $ua->post( $dotsubAPIURL);
         if ($response->is_success)
         {
-            my $subtitles = $response->content();
-            $coded=encode_base64($subtitles);
+            my $subtitles = $response->content();           
+            $base64 = encode_base64("$subtitles", '');
         }
         else
-        {
-            die "ERROR: There was a problem getting the subtitles from dotsub\n";
+        { 
+            print "WARNING: There was a problem getting the subtitles for $title: " . $response->status_line . "\n";
+            next;
         }
 
         my ($original, @videoURLs) = getVideoData(@$row[5], $href, @$row[2]);
         
         #print "$original\n";
         #print Dumper @videoURLs;
-
-        my $dataToJSON = {date=>trim(@$row[0]), title=>$title, file=>$coded, duration=>trim(@$row[3]), description=>trim($description), url=>$original};
+        
+        my $dataToJSON = {date=>trim(@$row[0]), title=>$title, file=>$base64, duration=>trim(@$row[3]), description=>trim($description), url=>$original};
         
         if (not $dryRun)
         {
@@ -111,16 +116,19 @@ for my $table (@tables)
             
             my $docId =  $uuid;
             my $get = $wj->post(
-                "/lti/en/$docId",
+                "/lti/en/$docId?pipeline=attachment",
                 $dataToJSON
             );
+            
+            print $get->status_line . "\n" unless $get->success;
+            
         }
         else
         {
             my $debugJSON = {date=>trim(@$row[0]), title=>trim($title), duration=>trim(@$row[3]), description=>trim($description), url=>$original};
             
             print Dumper $debugJSON;
-        }
+        }        
     }
 }
 
@@ -152,7 +160,7 @@ sub getVideoData
         $original = $titleHref->get_attr('href');
     }
     
-    if ($original eq "")
+    if (not defined $original)
     {
         $parser = HTML::TokeParser::Simple->new(string => $descriptionColumn);
         while (my $anchor = $parser->get_tag('a')) 
@@ -165,7 +173,7 @@ sub getVideoData
             }
         }
         
-        if ($original eq "")
+        if (not defined $original)
         {
             #default to the first link and then try to get the English link to override it
             for my $video (@videos)
@@ -175,7 +183,7 @@ sub getVideoData
                     $original = $video->{link};
                 }
             }
-            if ($original eq "" and @videos)
+            if (not defined $original and @videos)
             {
                 $original = $videos[0]->{link};
             }
